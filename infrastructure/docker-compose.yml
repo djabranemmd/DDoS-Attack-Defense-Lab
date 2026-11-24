@@ -1,0 +1,58 @@
+services:
+  target-server:
+    build:
+      context: ../target-website/backend
+      dockerfile: Dockerfile
+
+    container_name: ddos-lab-target
+
+    environment:
+      DATABASE_URL: postgresql+psycopg://lab_user:lab_password@db:5432/target_db
+
+    ports:
+      - "127.0.0.1:8000:8000"
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    mem_limit: 512m
+    cpus: 1.0
+
+    restart: unless-stopped
+
+    networks:
+      - lab-network
+
+  db:
+    image: postgres:16-alpine
+
+    container_name: ddos-lab-database
+
+    environment:
+      POSTGRES_DB: target_db
+      POSTGRES_USER: lab_user
+      POSTGRES_PASSWORD: lab_password
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab_user -d target_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    mem_limit: 512m
+
+    restart: unless-stopped
+
+    networks:
+      - lab-network
+
+networks:
+  lab-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
