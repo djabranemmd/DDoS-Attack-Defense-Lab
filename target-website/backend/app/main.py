@@ -1,8 +1,12 @@
 
 import os
+import time
+import threading
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Depends, status
+import psutil
+
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import create_engine, text
@@ -36,6 +40,25 @@ SessionLocal = sessionmaker(
 )
 
 
+# --------------------------------------------------
+# Monitoring state
+# --------------------------------------------------
+
+process = psutil.Process(os.getpid())
+process.cpu_percent(interval=None)
+
+server_started_at = time.monotonic()
+
+metrics_lock = threading.Lock()
+
+metrics = {
+    "request_count": 0,
+    "active_requests": 0,
+    "completed_requests": 0,
+    "total_response_time_ms": 0.0,
+}
+
+
 def get_db():
     db = SessionLocal()
 
@@ -63,6 +86,10 @@ app = FastAPI(
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
+
+# --------------------------------------------------
+# Authentication
+# --------------------------------------------------
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
@@ -104,6 +131,11 @@ def get_current_user(
 
     return user
 
+
+# --------------------------------------------------
+# Middleware
+# --------------------------------------------------
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -115,6 +147,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def monitor_requests(request: Request, call_next):
+    # Exclude the metrics endpoint to avoid polluting its own measurements.
+    should_measure = request.url.path != "/api/metrics"
+
+    if should_measure:
+        with metrics_lock:
+            metrics["request_count"] += 1
+            metrics["active_requests"] += 1
+
+    started_at = time.perf_counter()
+
+    try:
+        response = await call_next(request)
+        return response
+
+    finally:
+        if should_measure:
+            elapsed_ms = (time.perf_counter() - started_at) * 1000
+
+            with metrics_lock:
+                metrics["active_requests"] -= 1
+                metrics["completed_requests"] += 1
+                metrics["total_response_time_ms"] += elapsed_ms
+
+
+# --------------------------------------------------
+# Basic endpoints
+# --------------------------------------------------
 
 @app.get("/")
 def root():
@@ -154,6 +216,49 @@ def application_status():
         "database": "PostgreSQL",
     }
 
+
+# --------------------------------------------------
+# Monitoring endpoint
+# --------------------------------------------------
+
+@app.get("/api/metrics")
+def get_metrics():
+    with metrics_lock:
+        request_count = metrics["request_count"]
+        completed_requests = metrics["completed_requests"]
+        active_requests = metrics["active_requests"]
+        total_response_time = metrics["total_response_time_ms"]
+
+    average_response_time = (
+        total_response_time / completed_requests
+        if completed_requests > 0
+        else 0.0
+    )
+
+    try:
+        cpu_percent = process.cpu_percent(interval=None)
+        memory_mb = process.memory_info().rss / (1024 * 1024)
+        uptime_seconds = time.monotonic() - server_started_at
+
+    except psutil.Error:
+        cpu_percent = 0.0
+        memory_mb = 0.0
+        uptime_seconds = time.monotonic() - server_started_at
+
+    return {
+        "cpu_percent": round(cpu_percent, 2),
+        "memory_mb": round(memory_mb, 2),
+        "request_count": request_count,
+        "completed_requests": completed_requests,
+        "active_requests": active_requests,
+        "average_response_time_ms": round(average_response_time, 2),
+        "uptime_seconds": round(uptime_seconds, 2),
+    }
+
+
+# --------------------------------------------------
+# Authentication endpoints
+# --------------------------------------------------
 
 @app.post(
     "/api/auth/register",
@@ -205,6 +310,7 @@ def register_user(
         ) from exc
 
     return new_user
+
 
 @app.post(
     "/api/auth/login",
