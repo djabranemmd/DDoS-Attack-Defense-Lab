@@ -4,14 +4,19 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import sessionmaker, Session
 
 from app.models import Base, User
-from app.schemas import UserCreate, UserResponse
-from app.security import hash_password
+from app.schemas import UserCreate, LoginRequest, TokenResponse, UserResponse
+from app.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    decode_access_token,
+)
 
 
 DATABASE_URL = os.getenv(
@@ -56,6 +61,48 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+):
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = decode_access_token(credentials.credentials)
+
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        user_id = int(user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token subject",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user
 
 app.add_middleware(
     CORSMiddleware,
@@ -158,3 +205,51 @@ def register_user(
         ) from exc
 
     return new_user
+
+@app.post(
+    "/api/auth/login",
+    response_model=TokenResponse,
+)
+def login_user(
+    login_data: LoginRequest,
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter(
+        User.email == login_data.email
+    ).first()
+
+    if not user or not verify_password(
+        login_data.password,
+        user.hashed_password,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is inactive",
+        )
+
+    access_token, expires_in = create_access_token(
+        subject=str(user.id)
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": expires_in,
+    }
+
+
+@app.get(
+    "/api/auth/me",
+    response_model=UserResponse,
+)
+def get_my_profile(
+    current_user: User = Depends(get_current_user),
+):
+    return current_user

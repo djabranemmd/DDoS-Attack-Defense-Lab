@@ -8,6 +8,9 @@ services:
 
     environment:
       DATABASE_URL: postgresql+psycopg://lab_user:lab_password@db:5432/target_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:? is required}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
 
     ports:
       - "127.0.0.1:8000:8000"
