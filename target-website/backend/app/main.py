@@ -2,11 +2,13 @@
 import os
 import time
 import threading
+from collections import deque
 from contextlib import asynccontextmanager
 
 import psutil
 
 from fastapi import FastAPI, HTTPException, Depends, status, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import create_engine, text
@@ -41,7 +43,7 @@ SessionLocal = sessionmaker(
 
 
 # --------------------------------------------------
-# Monitoring state
+# Monitoring and Detection Configuration
 # --------------------------------------------------
 
 process = psutil.Process(os.getpid())
@@ -58,6 +60,33 @@ metrics = {
     "total_response_time_ms": 0.0,
 }
 
+# Detection configuration
+DETECTION_WINDOW_SECONDS = 5
+SUSPICIOUS_RPS_THRESHOLD = 10
+UNDER_ATTACK_RPS_THRESHOLD = 25
+
+request_timestamps = deque()
+detection_lock = threading.Lock()
+
+# --------------------------------------------------
+# Mitigation Engine Configuration
+# --------------------------------------------------
+
+MITIGATION_RATE_LIMIT = 10
+MITIGATION_WINDOW_SECONDS = 1
+MITIGATION_RECOVERY_SECONDS = 10
+
+mitigation_lock = threading.Lock()
+
+mitigation_state = {
+    "active": False,
+    "activated_at": None,
+    "deactivated_at": None,
+    "normal_since": None,
+    "blocked_requests": 0,
+}
+
+client_request_timestamps = {}
 
 def get_db():
     db = SessionLocal()
@@ -67,6 +96,112 @@ def get_db():
     finally:
         db.close()
 
+
+# --------------------------------------------------
+# Detection Engine
+# --------------------------------------------------
+
+def get_detection_snapshot():
+    now = time.monotonic()
+    cutoff = now - DETECTION_WINDOW_SECONDS
+
+    with detection_lock:
+        while (
+            request_timestamps
+            and request_timestamps[0] < cutoff
+        ):
+            request_timestamps.popleft()
+
+        recent_requests = len(request_timestamps)
+
+    requests_per_second = (
+        recent_requests / DETECTION_WINDOW_SECONDS
+    )
+
+    if requests_per_second >= UNDER_ATTACK_RPS_THRESHOLD:
+        detection_status = "UNDER_ATTACK"
+        severity = "critical"
+        message = "High request rate detected."
+
+    elif requests_per_second >= SUSPICIOUS_RPS_THRESHOLD:
+        detection_status = "SUSPICIOUS"
+        severity = "warning"
+        message = "Unusual request rate detected."
+
+    else:
+        detection_status = "NORMAL"
+        severity = "info"
+        message = "Traffic is within the configured normal range."
+
+    return {
+        "status": detection_status,
+        "severity": severity,
+        "message": message,
+        "requests_per_second": round(requests_per_second, 2),
+        "observed_requests": recent_requests,
+        "window_seconds": DETECTION_WINDOW_SECONDS,
+        "thresholds": {
+            "suspicious_rps": SUSPICIOUS_RPS_THRESHOLD,
+            "under_attack_rps": UNDER_ATTACK_RPS_THRESHOLD,
+        },
+    }
+
+# --------------------------------------------------
+# Mitigation Engine
+# --------------------------------------------------
+
+def update_mitigation_state():
+    detection = get_detection_snapshot()
+    now = time.monotonic()
+
+    with mitigation_lock:
+
+        if detection["status"] == "UNDER_ATTACK":
+
+            mitigation_state["active"] = True
+            mitigation_state["normal_since"] = None
+
+            if mitigation_state["activated_at"] is None or (
+                mitigation_state["deactivated_at"] is not None
+            ):
+                mitigation_state["activated_at"] = time.time()
+                mitigation_state["deactivated_at"] = None
+
+        elif mitigation_state["active"]:
+
+            if detection["status"] == "NORMAL":
+
+                if mitigation_state["normal_since"] is None:
+                    mitigation_state["normal_since"] = now
+
+                elif (
+                    now - mitigation_state["normal_since"]
+                    >= MITIGATION_RECOVERY_SECONDS
+                ):
+                    mitigation_state["active"] = False
+                    mitigation_state["deactivated_at"] = time.time()
+                    mitigation_state["normal_since"] = None
+
+            else:
+                mitigation_state["normal_since"] = None
+
+
+def get_mitigation_snapshot():
+
+    with mitigation_lock:
+        return {
+            "active": mitigation_state["active"],
+            "activated_at": mitigation_state["activated_at"],
+            "deactivated_at": mitigation_state["deactivated_at"],
+            "blocked_requests": mitigation_state["blocked_requests"],
+            "rate_limit": MITIGATION_RATE_LIMIT,
+            "window_seconds": MITIGATION_WINDOW_SECONDS,
+            "recovery_seconds": MITIGATION_RECOVERY_SECONDS,
+        }
+
+# --------------------------------------------------
+# Application Lifecycle
+# --------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -148,25 +283,121 @@ app.add_middleware(
 )
 
 
+
 @app.middleware("http")
 async def monitor_requests(request: Request, call_next):
-    # Exclude the metrics endpoint to avoid polluting its own measurements.
-    should_measure = request.url.path != "/api/metrics"
+
+    # Endpoints that must remain accessible during mitigation.
+    mitigation_exempt_paths = {
+        "/health",
+        "/api/metrics",
+        "/api/detection",
+        "/api/mitigation",
+    }
+
+    # Monitoring endpoints must not affect attack detection.
+    excluded_paths = {
+        "/api/metrics",
+        "/api/detection",
+        "/api/mitigation",
+    }
+
+    path = request.url.path
+
+    should_measure = path not in excluded_paths
+    should_protect = path not in mitigation_exempt_paths
 
     if should_measure:
+
+        now = time.monotonic()
+        cutoff = now - DETECTION_WINDOW_SECONDS
+
+        # Record incoming requests for detection.
+        with detection_lock:
+            request_timestamps.append(now)
+
+            while (
+                request_timestamps
+                and request_timestamps[0] < cutoff
+            ):
+                request_timestamps.popleft()
+
+        # Update server metrics.
         with metrics_lock:
             metrics["request_count"] += 1
             metrics["active_requests"] += 1
 
+        # Update automatic mitigation state.
+        update_mitigation_state()
+
     started_at = time.perf_counter()
 
     try:
+
+        # Apply per-client rate limiting when mitigation is active.
+        if should_protect:
+
+            with mitigation_lock:
+                mitigation_active = mitigation_state["active"]
+
+            if mitigation_active:
+
+                client_ip = (
+                    request.client.host
+                    if request.client
+                    else "unknown"
+                )
+
+                now = time.monotonic()
+                cutoff = now - MITIGATION_WINDOW_SECONDS
+
+                with mitigation_lock:
+
+                    client_requests = client_request_timestamps.setdefault(
+                        client_ip,
+                        deque()
+                    )
+
+                    # Remove expired timestamps.
+                    while (
+                        client_requests
+                        and client_requests[0] <= cutoff
+                    ):
+                        client_requests.popleft()
+
+                    if len(client_requests) >= MITIGATION_RATE_LIMIT:
+
+                        mitigation_state["blocked_requests"] += 1
+
+                        return JSONResponse(
+                            status_code=429,
+                            content={
+                                "detail": "Request rate limit exceeded",
+                                "mitigation_active": True,
+                                "retry_after_seconds": (
+                                    MITIGATION_WINDOW_SECONDS
+                                ),
+                            },
+                            headers={
+                                "Retry-After": str(
+                                    MITIGATION_WINDOW_SECONDS
+                                )
+                            },
+                        )
+
+                    # Allow this request.
+                    client_requests.append(now)
+
         response = await call_next(request)
         return response
 
     finally:
+
         if should_measure:
-            elapsed_ms = (time.perf_counter() - started_at) * 1000
+
+            elapsed_ms = (
+                time.perf_counter() - started_at
+            ) * 1000
 
             with metrics_lock:
                 metrics["active_requests"] -= 1
@@ -175,7 +406,7 @@ async def monitor_requests(request: Request, call_next):
 
 
 # --------------------------------------------------
-# Basic endpoints
+# Basic Endpoints
 # --------------------------------------------------
 
 @app.get("/")
@@ -218,11 +449,12 @@ def application_status():
 
 
 # --------------------------------------------------
-# Monitoring endpoint
+# Monitoring Endpoint
 # --------------------------------------------------
 
 @app.get("/api/metrics")
 def get_metrics():
+
     with metrics_lock:
         request_count = metrics["request_count"]
         completed_requests = metrics["completed_requests"]
@@ -237,13 +469,19 @@ def get_metrics():
 
     try:
         cpu_percent = process.cpu_percent(interval=None)
-        memory_mb = process.memory_info().rss / (1024 * 1024)
-        uptime_seconds = time.monotonic() - server_started_at
+        memory_mb = (
+            process.memory_info().rss / (1024 * 1024)
+        )
+        uptime_seconds = (
+            time.monotonic() - server_started_at
+        )
 
     except psutil.Error:
         cpu_percent = 0.0
         memory_mb = 0.0
-        uptime_seconds = time.monotonic() - server_started_at
+        uptime_seconds = (
+            time.monotonic() - server_started_at
+        )
 
     return {
         "cpu_percent": round(cpu_percent, 2),
@@ -251,13 +489,38 @@ def get_metrics():
         "request_count": request_count,
         "completed_requests": completed_requests,
         "active_requests": active_requests,
-        "average_response_time_ms": round(average_response_time, 2),
+        "average_response_time_ms": round(
+            average_response_time, 2
+        ),
         "uptime_seconds": round(uptime_seconds, 2),
     }
 
 
+
 # --------------------------------------------------
-# Authentication endpoints
+# Detection Endpoint
+# --------------------------------------------------
+
+@app.get("/api/detection")
+def get_detection_status():
+    return get_detection_snapshot()
+
+
+# --------------------------------------------------
+# Mitigation Endpoint
+# --------------------------------------------------
+
+@app.get("/api/mitigation")
+def get_mitigation_status():
+
+    # Update mitigation state to support automatic recovery.
+    update_mitigation_state()
+
+    return get_mitigation_snapshot()
+
+
+# --------------------------------------------------
+# Authentication Endpoints
 # --------------------------------------------------
 
 @app.post(
@@ -269,6 +532,7 @@ def register_user(
     user_data: UserCreate,
     db: Session = Depends(get_db),
 ):
+
     existing_username = db.query(User).filter(
         User.username == user_data.username
     ).first()
@@ -320,6 +584,7 @@ def login_user(
     login_data: LoginRequest,
     db: Session = Depends(get_db),
 ):
+
     user = db.query(User).filter(
         User.email == login_data.email
     ).first()

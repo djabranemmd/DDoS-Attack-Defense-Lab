@@ -35,3 +35,11 @@ export async function checkServerHealth() {
 export async function getApplicationStatus() {
   return await apiRequest("/api/status");
 }
+
+export async function getServerMetrics() {
+  return await apiRequest("/api/metrics");
+}
+
+export async function getDetectionStatus() {
+  return await apiRequest("/api/detection");
+}

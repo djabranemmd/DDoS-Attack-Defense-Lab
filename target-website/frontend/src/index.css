@@ -1075,3 +1075,246 @@ button {
     flex-direction: column;
   }
 }
+
+
+/* Real-time Monitoring */
+
+.metrics-section {
+  margin-top: 42px;
+}
+
+.metrics-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.metrics-heading h2 {
+  margin: 9px 0 5px;
+  font-family: "Manrope", sans-serif;
+  font-size: 23px;
+  letter-spacing: -0.7px;
+}
+
+.metrics-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.metrics-updated {
+  color: #8996ac;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.metrics-grid {
+  margin-top: 0;
+}
+
+.metric-card {
+  min-height: 155px;
+}
+
+.metric-card > strong {
+  font-size: 25px;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-progress {
+  height: 5px;
+  overflow: hidden;
+  margin-top: 18px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.metric-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6d8cff, #74c8dc);
+  transition: width 0.5s ease;
+}
+
+.metrics-footnote {
+  margin: 13px 0 0;
+  color: #8290a5;
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.metrics-message {
+  margin-bottom: 15px;
+  padding: 14px;
+  border: 1px solid rgba(255, 107, 121, 0.2);
+  border-radius: 9px;
+  color: #ff9ca5;
+  background: rgba(255, 107, 121, 0.06);
+  font-size: 11px;
+}
+
+.dashboard-live.monitoring-offline .status-dot {
+  background: #ff6b79;
+  box-shadow: 0 0 10px rgba(255, 107, 121, 0.5);
+}
+
+@media (max-width: 760px) {
+  .metrics-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .metrics-updated {
+    white-space: normal;
+  }
+
+  .metrics-section {
+    margin-top: 32px;
+  }
+}
+
+
+/* ================================
+   Detection Engine
+================================ */
+
+.detection-section {
+  margin-top: 42px;
+}
+
+.detection-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px;
+  margin-top: 22px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 16px;
+  background: var(--card-bg, rgba(255, 255, 255, 0.03));
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+
+.detection-main h3 {
+  margin: 14px 0 8px;
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.detection-main p {
+  margin: 0;
+  color: var(--text-secondary, #a1a1aa);
+  font-size: 14px;
+}
+
+.detection-indicator {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--text-secondary, #a1a1aa);
+}
+
+.detection-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.detection-rps {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.detection-rps span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-secondary, #a1a1aa);
+}
+
+.detection-rps strong {
+  font-size: 38px;
+  line-height: 1.2;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.detection-rps small {
+  color: var(--text-secondary, #a1a1aa);
+  font-size: 12px;
+}
+
+.detection-grid {
+  margin-top: 18px;
+}
+
+/* Normal traffic */
+.detection-panel.status-normal {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.status-normal .detection-dot,
+.status-normal .detection-main h3,
+.status-normal .detection-rps strong {
+  color: #22c55e;
+}
+
+/* Suspicious traffic */
+.detection-panel.status-suspicious {
+  border-color: rgba(234, 179, 8, 0.45);
+  background: rgba(234, 179, 8, 0.04);
+}
+
+.status-suspicious .detection-dot,
+.status-suspicious .detection-main h3,
+.status-suspicious .detection-rps strong {
+  color: #eab308;
+}
+
+/* High traffic / attack detected */
+.detection-panel.status-under-attack {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.status-under-attack .detection-dot,
+.status-under-attack .detection-main h3,
+.status-under-attack .detection-rps strong {
+  color: #ef4444;
+}
+
+/* Unknown / connection error */
+.detection-panel.status-unknown {
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+.status-unknown .detection-dot,
+.status-unknown .detection-main h3,
+.status-unknown .detection-rps strong {
+  color: #94a3b8;
+}
+
+@media (max-width: 640px) {
+  .detection-panel {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .detection-rps {
+    align-items: flex-start;
+  }
+
+  .detection-rps strong {
+    font-size: 32px;
+  }
+}

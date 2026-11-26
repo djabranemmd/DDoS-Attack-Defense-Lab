@@ -15,7 +15,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   CheckCircle2,
-  CircleHelp,
   Gauge,
   Globe,
   LockKeyhole,
@@ -31,6 +30,8 @@ import {
 import {
   checkServerHealth,
   getApplicationStatus,
+  getServerMetrics,
+  getDetectionStatus,
 } from "./services/api";
 
 import { AuthProvider } from "./context/AuthContext.jsx";
@@ -584,16 +585,70 @@ function ProtectedRoute({ children }) {
 }
 
 
+function formatUptime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return "—";
+  }
+
+  const totalSeconds = Math.floor(seconds);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
+
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${remainingSeconds}s`;
+  return `${remainingSeconds}s`;
+}
+
+function MetricCard({ label, value, detail, icon, percentage }) {
+  const hasProgress = Number.isFinite(percentage);
+
+  return (
+    <article className="dashboard-card metric-card">
+      <div className="dashboard-card-top">
+        <span>{label}</span>
+        {icon}
+      </div>
+
+      <strong>{value}</strong>
+      <p>{detail}</p>
+
+      {hasProgress && (
+        <div
+          className="metric-progress"
+          role="progressbar"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.min(100, Math.max(0, percentage))}
+        >
+          <span
+            style={{
+              width: `${Math.min(100, Math.max(0, percentage))}%`,
+            }}
+          />
+        </div>
+      )}
+    </article>
+  );
+}
+
 function DashboardPage() {
   const { user } = useAuth();
-
+  const [detection, setDetection] = useState(null);
+  const [detectionError, setDetectionError] = useState(false);
   const [serverStatus, setServerStatus] = useState(null);
   const [appStatus, setAppStatus] = useState(null);
+  const [metrics, setMetrics] = useState(null);
+  const [metricsError, setMetricsError] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadData() {
+    async function loadServiceStatus() {
       const [health, application] = await Promise.all([
         checkServerHealth(),
         getApplicationStatus(),
@@ -605,17 +660,66 @@ function DashboardPage() {
       }
     }
 
-    loadData();
+    async function loadMetrics() {
+      const result = await getServerMetrics();
 
-    const interval = setInterval(loadData, 10000);
+      if (!mounted) return;
+
+      if (result) {
+        setMetrics(result);
+        setMetricsError(false);
+        setLastUpdated(new Date());
+      } else {
+        setMetricsError(true);
+      }
+    }
+
+    async function loadDetection() {
+  const result = await getDetectionStatus();
+
+  if (!mounted) return;
+
+  if (result) {
+    setDetection(result);
+    setDetectionError(false);
+  } else {
+    setDetectionError(true);
+  }
+}
+
+    loadServiceStatus();
+    loadMetrics();
+    loadDetection();
+
+    const statusInterval = setInterval(loadServiceStatus, 10000);
+    const metricsInterval = setInterval(loadMetrics, 2000);
+    const detectionInterval = setInterval(loadDetection, 2000);
 
     return () => {
       mounted = false;
-      clearInterval(interval);
+      clearInterval(statusInterval);
+      clearInterval(metricsInterval);
+      clearInterval(detectionInterval);
+
     };
   }, []);
 
-  const healthy = serverStatus?.status === "healthy";
+const healthy = serverStatus?.status === "healthy";
+const databaseConnected = serverStatus?.database === "connected";
+
+const detectionStatus = detection?.status ?? "UNKNOWN";
+
+const detectionClass = detectionStatus
+  .toLowerCase()
+  .replaceAll("_", "-");
+
+const detectionRps = Number(detection?.requests_per_second);
+
+const cpuPercent = Number(metrics?.cpu_percent);
+  const memoryMb = Number(metrics?.memory_mb);
+  const memoryPercent = Number.isFinite(memoryMb)
+    ? (memoryMb / 512) * 100
+    : null;
 
   return (
     <main className="dashboard-section">
@@ -624,12 +728,12 @@ function DashboardPage() {
           <div>
             <span className="eyebrow">WORKSPACE</span>
             <h1>Welcome, {user?.username}</h1>
-            <p>Monitor the current state of your application.</p>
+            <p>Monitor the current state and performance of your target server.</p>
           </div>
 
-          <span className="dashboard-live">
+          <span className={`dashboard-live ${metricsError ? "monitoring-offline" : ""}`}>
             <span className="status-dot" />
-            Live monitoring
+            {metricsError ? "Monitoring unavailable" : "Live monitoring"}
           </span>
         </div>
 
@@ -657,17 +761,11 @@ function DashboardPage() {
               <Globe size={19} />
             </div>
 
-            <strong
-              className={
-                serverStatus?.database === "connected"
-                  ? "value-success"
-                  : "value-danger"
-              }
-            >
-              {serverStatus?.database === "connected"
-                ? "Connected"
-                : serverStatus === null
-                  ? "Checking..."
+            <strong className={databaseConnected ? "value-success" : "value-danger"}>
+              {serverStatus === null
+                ? "Checking..."
+                : databaseConnected
+                  ? "Connected"
                   : "Unavailable"}
             </strong>
 
@@ -680,15 +778,178 @@ function DashboardPage() {
               <ShieldCheck size={19} />
             </div>
 
-            <strong>
-              {appStatus?.status === "operational"
-                ? "Operational"
-                : "Unknown"}
+            <strong className={appStatus?.status === "operational" ? "value-success" : ""}>
+              {appStatus?.status === "operational" ? "Operational" : "Unknown"}
             </strong>
 
             <p>Target Website service</p>
           </div>
         </div>
+
+        <section className="metrics-section">
+          <div className="metrics-heading">
+            <div>
+              <span className="eyebrow">REAL-TIME TELEMETRY</span>
+              <h2>Server performance</h2>
+              <p>Metrics collected directly from the FastAPI target server.</p>
+            </div>
+
+            <span className="metrics-updated">
+              {lastUpdated
+                ? `Updated ${lastUpdated.toLocaleTimeString()}`
+                : "Waiting for metrics"}
+            </span>
+          </div>
+
+          {metricsError && !metrics && (
+            <div className="metrics-message" role="alert">
+              Unable to retrieve server metrics. Check that the target server is running.
+            </div>
+          )}
+
+          <div className="dashboard-grid metrics-grid">
+            <MetricCard
+              label="CPU Usage"
+              value={Number.isFinite(cpuPercent) ? `${cpuPercent.toFixed(1)}%` : "—"}
+              detail="Target process CPU utilization"
+              icon={<Gauge size={19} />}
+              percentage={cpuPercent}
+            />
+
+            <MetricCard
+              label="Memory Usage"
+              value={Number.isFinite(memoryMb) ? `${memoryMb.toFixed(1)} MB` : "—"}
+              detail="Process resident memory (RSS)"
+              icon={<Activity size={19} />}
+              percentage={memoryPercent}
+            />
+
+            <MetricCard
+              label="Total Requests"
+              value={metrics ? Number(metrics.request_count).toLocaleString() : "—"}
+              detail="Requests received by the server"
+              icon={<Globe size={19} />}
+            />
+
+            <MetricCard
+              label="Active Requests"
+              value={metrics ? Number(metrics.active_requests).toLocaleString() : "—"}
+              detail="Requests currently being processed"
+              icon={<Zap size={19} />}
+            />
+
+            <MetricCard
+              label="Average Response Time"
+              value={
+                metrics && Number.isFinite(Number(metrics.average_response_time_ms))
+                  ? `${Number(metrics.average_response_time_ms).toFixed(2)} ms`
+                  : "—"
+              }
+              detail="Average completed request latency"
+              icon={<Activity size={19} />}
+            />
+
+            <MetricCard
+              label="Server Uptime"
+              value={metrics ? formatUptime(Number(metrics.uptime_seconds)) : "—"}
+              detail="Time since the target server started"
+              icon={<CheckCircle2 size={19} />}
+            />
+          </div>
+
+          {metrics && (
+            <p className="metrics-footnote">
+              {Number(metrics.completed_requests).toLocaleString()} completed requests recorded.
+              Memory bar is relative to the target container's 512 MB memory limit.
+            </p>
+          )}
+        </section>
+
+        
+        <section className="detection-section">
+          <div className="metrics-heading">
+            <div>
+              <span className="eyebrow">AI SECURITY MONITORING</span>
+              <h2>Detection Engine</h2>
+              <p>
+                Real-time analysis of incoming HTTP traffic.
+              </p>
+            </div>
+
+            <span className="metrics-updated">
+              {detection
+                ? `Window: ${detection.window_seconds}s`
+                : "Waiting for detection data"}
+            </span>
+          </div>
+
+          <div className={`detection-panel status-${detectionClass}`}>
+            <div className="detection-main">
+              <div className="detection-indicator">
+                <span className="detection-dot" />
+                <span>TRAFFIC ANALYSIS STATUS</span>
+              </div>
+
+              <h3>
+                {detectionError
+                  ? "CONNECTION ERROR"
+                  : detectionStatus}
+              </h3>
+
+              <p>
+                {detectionError
+                  ? "Unable to retrieve detection data from the backend."
+                  : detection?.message ?? "Waiting for detection engine..."}
+              </p>
+            </div>
+
+            <div className="detection-rps">
+              <span>REQUESTS PER SECOND</span>
+              <strong>
+                {Number.isFinite(detectionRps)
+                  ? detectionRps.toFixed(2)
+                  : "—"}
+              </strong>
+              <small>RPS</small>
+            </div>
+          </div>
+
+          <div className="dashboard-grid detection-grid">
+            <MetricCard
+              label="Observed Requests"
+              value={
+                detection
+                  ? Number(detection.observed_requests).toLocaleString()
+                  : "—"
+              }
+              detail={`Requests in the last ${detection?.window_seconds ?? "—"} seconds`}
+              icon={<Activity size={19} />}
+            />
+
+            <MetricCard
+              label="Suspicious Threshold"
+              value={
+                detection
+                  ? `${detection.thresholds.suspicious_rps} RPS`
+                  : "—"
+              }
+              detail="Warning classification threshold"
+              icon={<Gauge size={19} />}
+            />
+
+            <MetricCard
+              label="Attack Threshold"
+              value={
+                detection
+                  ? `${detection.thresholds.under_attack_rps} RPS`
+                  : "—"
+              }
+              detail="Critical classification threshold"
+              icon={<ShieldCheck size={19} />}
+            />
+          </div>
+        </section>
+
 
         <section className="system-panel">
           <div className="panel-heading">
@@ -712,11 +973,7 @@ function DashboardPage() {
               </div>
             </div>
 
-            <span
-              className={`service-state ${
-                healthy ? "state-online" : "state-offline"
-              }`}
-            >
+            <span className={`service-state ${healthy ? "state-online" : "state-offline"}`}>
               {healthy
                 ? "Healthy"
                 : serverStatus === null
@@ -737,34 +994,19 @@ function DashboardPage() {
               </div>
             </div>
 
-            <span
-              className={`service-state ${
-                serverStatus?.database === "connected"
-                  ? "state-online"
-                  : "state-offline"
-              }`}
-            >
-              {serverStatus?.database === "connected"
+            <span className={`service-state ${databaseConnected ? "state-online" : "state-offline"}`}>
+              {databaseConnected
                 ? "Connected"
-                : "Unavailable"}
+                : serverStatus === null
+                  ? "Checking"
+                  : "Unavailable"}
             </span>
           </div>
         </section>
-
-        <div className="dashboard-note">
-          <CircleHelp size={18} />
-
-          <p>
-            This dashboard currently displays real backend health information.
-            CPU, memory, traffic metrics, and protection controls will be added
-            in the monitoring and defense stages.
-          </p>
-        </div>
       </div>
     </main>
   );
 }
-
 
 function Footer() {
   return (
