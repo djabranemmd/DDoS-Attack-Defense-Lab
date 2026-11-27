@@ -32,6 +32,7 @@ import {
   getApplicationStatus,
   getServerMetrics,
   getDetectionStatus,
+  getMitigationStatus,
 } from "./services/api";
 
 import { AuthProvider } from "./context/AuthContext.jsx";
@@ -639,6 +640,8 @@ function DashboardPage() {
   const { user } = useAuth();
   const [detection, setDetection] = useState(null);
   const [detectionError, setDetectionError] = useState(false);
+  const [mitigation, setMitigation] = useState(null);
+  const [mitigationError, setMitigationError] = useState(false);
   const [serverStatus, setServerStatus] = useState(null);
   const [appStatus, setAppStatus] = useState(null);
   const [metrics, setMetrics] = useState(null);
@@ -687,19 +690,34 @@ function DashboardPage() {
   }
 }
 
+    async function loadMitigation() {
+  const result = await getMitigationStatus();
+
+  if (!mounted) return;
+
+  if (result) {
+    setMitigation(result);
+    setMitigationError(false);
+  } else {
+    setMitigationError(true);
+  }
+}
     loadServiceStatus();
     loadMetrics();
     loadDetection();
+    loadMitigation();
 
     const statusInterval = setInterval(loadServiceStatus, 10000);
     const metricsInterval = setInterval(loadMetrics, 2000);
     const detectionInterval = setInterval(loadDetection, 2000);
+    const mitigationInterval = setInterval(loadMitigation, 2000);
 
     return () => {
       mounted = false;
       clearInterval(statusInterval);
       clearInterval(metricsInterval);
       clearInterval(detectionInterval);
+      clearInterval(mitigationInterval);
 
     };
   }, []);
@@ -715,6 +733,27 @@ const detectionClass = detectionStatus
 
 const detectionRps = Number(detection?.requests_per_second);
 
+  const mitigationActive = mitigation?.active === true;
+
+const mitigationRecovering =
+  mitigationActive && detectionStatus === "NORMAL";
+
+const mitigationStatus = mitigationError
+  ? "CONNECTION ERROR"
+  : mitigationRecovering
+    ? "RECOVERING"
+    : mitigationActive
+      ? "ACTIVE"
+      : "INACTIVE";
+
+const mitigationClass = mitigationError
+  ? "unknown"
+  : mitigationRecovering
+    ? "recovering"
+    : mitigationActive
+      ? "active"
+      : "inactive";
+  
 const cpuPercent = Number(metrics?.cpu_percent);
   const memoryMb = Number(metrics?.memory_mb);
   const memoryPercent = Number.isFinite(memoryMb)
@@ -914,6 +953,7 @@ const cpuPercent = Number(metrics?.cpu_percent);
             </div>
           </div>
 
+          
           <div className="dashboard-grid detection-grid">
             <MetricCard
               label="Observed Requests"
@@ -947,11 +987,93 @@ const cpuPercent = Number(metrics?.cpu_percent);
               detail="Critical classification threshold"
               icon={<ShieldCheck size={19} />}
             />
+                    </div>
+        </section>
+
+        <section className="mitigation-section">
+          <div className="metrics-heading">
+            <div>
+              <span className="eyebrow">AUTOMATED DEFENSE</span>
+              <h2>Mitigation Engine</h2>
+              <p>
+                Automatic traffic protection and rate limiting.
+              </p>
+            </div>
+
+            <span className="metrics-updated">
+              {mitigation
+                ? `Limit: ${mitigation.rate_limit} requests / ${mitigation.window_seconds}s`
+                : "Waiting for mitigation data"}
+            </span>
+          </div>
+
+          <div className={`mitigation-panel status-${mitigationClass}`}>
+            <div className="mitigation-main">
+              <div className="mitigation-indicator">
+                <span className="mitigation-dot" />
+                <span>PROTECTION SYSTEM STATUS</span>
+              </div>
+
+              <h3>
+                {mitigationStatus}
+              </h3>
+
+              <p>
+                {mitigationError
+                  ? "Unable to retrieve mitigation data from the backend."
+                  : mitigationRecovering
+                    ? "Traffic is back to normal. Automatic protection recovery is in progress."
+                    : mitigationActive
+                      ? "Abnormal traffic detected. Rate limiting is actively blocking excessive requests."
+                      : "Protection is standing by. No active mitigation is required."}
+              </p>
+            </div>
+
+            <div className="mitigation-recovery">
+              <span>AUTOMATIC RECOVERY</span>
+              <strong>
+                {mitigation
+                  ? `${mitigation.recovery_seconds}s`
+                  : "—"}
+              </strong>
+              <small>Normal traffic required</small>
+            </div>
+          </div>
+
+          <div className="dashboard-grid detection-grid">
+            <MetricCard
+              label="Blocked Requests"
+              value={
+                mitigation
+                  ? Number(mitigation.blocked_requests).toLocaleString()
+                  : "—"
+              }
+              detail="Requests rejected by the protection system"
+              icon={<ShieldCheck size={19} />}
+            />
+
+            <MetricCard
+              label="Rate Limit"
+              value={
+                mitigation
+                  ? `${mitigation.rate_limit} req/s`
+                  : "—"
+              }
+              detail="Maximum requests allowed per client"
+              icon={<Gauge size={19} />}
+            />
+
+            <MetricCard
+              label="Protection Status"
+              value={mitigationError ? "Unknown" : mitigationActive ? "Enabled" : "Standby"}
+              detail="Automatic mitigation state"
+              icon={<LockKeyhole size={19} />}
+            />
           </div>
         </section>
 
-
         <section className="system-panel">
+
           <div className="panel-heading">
             <div>
               <h2>Service health</h2>

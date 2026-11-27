@@ -43,3 +43,7 @@ export async function getServerMetrics() {
 export async function getDetectionStatus() {
   return await apiRequest("/api/detection");
 }
+
+export async function getMitigationStatus() {
+  return await apiRequest("/api/mitigation");
+}

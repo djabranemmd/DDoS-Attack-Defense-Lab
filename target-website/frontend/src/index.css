@@ -1318,3 +1318,133 @@ button {
     font-size: 32px;
   }
 }
+
+
+/* --------------------------------------------------
+   Mitigation Engine
+-------------------------------------------------- */
+
+.mitigation-section {
+  margin-top: 42px;
+}
+
+.mitigation-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 30px;
+  padding: 28px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 16px;
+  background: rgba(148, 163, 184, 0.03);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.mitigation-main {
+  flex: 1;
+}
+
+.mitigation-indicator {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #94a3b8;
+}
+
+.mitigation-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mitigation-main h3 {
+  margin: 14px 0 8px;
+  font-size: 25px;
+  font-weight: 800;
+}
+
+.mitigation-main p {
+  margin: 0;
+  max-width: 600px;
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.mitigation-recovery {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  text-align: right;
+}
+
+.mitigation-recovery span,
+.mitigation-recovery small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.mitigation-recovery strong {
+  font-size: 32px;
+  font-weight: 800;
+}
+
+/* Active protection */
+.mitigation-panel.status-active {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.status-active .mitigation-dot,
+.status-active .mitigation-main h3 {
+  color: #ef4444;
+}
+
+/* Automatic recovery */
+.mitigation-panel.status-recovering {
+  border-color: rgba(234, 179, 8, 0.45);
+  background: rgba(234, 179, 8, 0.04);
+}
+
+.status-recovering .mitigation-dot,
+.status-recovering .mitigation-main h3 {
+  color: #eab308;
+}
+
+/* Inactive protection */
+.mitigation-panel.status-inactive {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.03);
+}
+
+.status-inactive .mitigation-dot,
+.status-inactive .mitigation-main h3 {
+  color: #22c55e;
+}
+
+/* Connection error */
+.mitigation-panel.status-unknown {
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+.status-unknown .mitigation-dot,
+.status-unknown .mitigation-main h3 {
+  color: #94a3b8;
+}
+
+@media (max-width: 640px) {
+  .mitigation-panel {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .mitigation-recovery {
+    align-items: flex-start;
+    text-align: left;
+  }
+}
