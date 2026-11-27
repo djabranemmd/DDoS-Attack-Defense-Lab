@@ -1448,3 +1448,501 @@ button {
     text-align: left;
   }
 }
+
+/* ==================================================
+   NEXORA ATTACK CONSOLE
+================================================== */
+
+.attack-console {
+  min-height: 100vh;
+  padding: 65px 0 90px;
+  background:
+    radial-gradient(ellipse at 85% 0%, rgba(75, 102, 210, 0.10), transparent 35%),
+    var(--bg);
+}
+
+.attack-console .container {
+  max-width: 1120px;
+}
+
+/* Page heading */
+
+.attack-console-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 30px;
+  margin-bottom: 38px;
+}
+
+.attack-console-heading h1 {
+  margin: 13px 0 12px;
+  font-family: "Manrope", sans-serif;
+  font-size: clamp(30px, 4vw, 43px);
+  font-weight: 800;
+  letter-spacing: -1.5px;
+}
+
+.attack-console-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.eyebrow {
+  display: inline-block;
+  color: #819aff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+/* Target status */
+
+.console-server-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 13px;
+  border: 1px solid var(--border);
+  border-radius: 30px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+}
+
+.console-server-status > span,
+.console-state-indicator > span {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.console-server-status.online {
+  color: #36d6a0;
+  background: rgba(54, 214, 160, 0.06);
+  border-color: rgba(54, 214, 160, 0.25);
+}
+
+.console-server-status.offline {
+  color: #ef6868;
+  background: rgba(239, 104, 104, 0.06);
+  border-color: rgba(239, 104, 104, 0.25);
+}
+
+/* Target panel */
+
+.console-target-panel {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 25px;
+  margin-bottom: 45px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: linear-gradient(120deg, rgba(109, 140, 255, 0.07), rgba(16, 24, 39, 0.85));
+}
+
+.console-target-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  color: #819aff;
+  border-radius: 12px;
+  background: rgba(109, 140, 255, 0.12);
+}
+
+.console-target-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.console-target-info > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+}
+
+.console-target-info strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.console-target-info small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.console-target-health {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #36d6a0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Section headings */
+
+.console-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+  margin: 42px 0 20px;
+}
+
+.console-section-heading h2 {
+  margin: 9px 0 0;
+  font-family: "Manrope", sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+}
+
+.console-mode-label {
+  padding: 7px 11px;
+  color: #819aff;
+  border: 1px solid rgba(109, 140, 255, 0.25);
+  border-radius: 7px;
+  background: rgba(109, 140, 255, 0.07);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+/* Simulation control */
+
+.console-control-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 18px;
+}
+
+.console-control-panel,
+.console-state-panel {
+  min-width: 0;
+  padding: 25px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--surface);
+}
+
+.console-control-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 11px;
+}
+
+.console-control-panel label {
+  margin-top: 5px;
+  color: #cbd5e5;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.console-control-panel select {
+  width: 100%;
+  min-height: 43px;
+  padding: 0 13px;
+  color: var(--text);
+  border: 1px solid rgba(164, 180, 208, 0.19);
+  border-radius: 8px;
+  outline: none;
+  background: #0b1424;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.console-control-panel select:focus {
+  border-color: var(--primary);
+}
+
+.console-control-panel select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.console-safety-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  margin-top: 9px;
+  padding: 12px;
+  color: #9eacbf;
+  border: 1px solid rgba(109, 140, 255, 0.16);
+  border-radius: 9px;
+  background: rgba(109, 140, 255, 0.045);
+}
+
+.console-safety-note svg {
+  flex-shrink: 0;
+  color: #819aff;
+}
+
+.console-safety-note p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.console-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.console-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Simulation state */
+
+.console-state-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.console-state-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 22px;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.console-state-indicator.state-idle {
+  color: #94a3b8;
+}
+
+.console-state-indicator.state-ready {
+  color: #819aff;
+}
+
+.console-state-indicator.state-running {
+  color: #36d6a0;
+}
+
+.console-state-indicator.state-stopped {
+  color: #eab308;
+}
+
+.console-state-panel > p {
+  min-height: 43px;
+  margin: 13px 0 20px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.console-state-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.console-state-meta span {
+  color: var(--muted);
+}
+
+.console-state-meta strong {
+  color: #e9edf7;
+}
+
+/* Live telemetry */
+
+.console-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.console-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.console-metric-card {
+  min-width: 0;
+  padding: 21px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.console-metric-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(109, 140, 255, 0.4);
+}
+
+.console-metric-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 16px;
+  color: #819aff;
+  border-radius: 10px;
+  background: rgba(109, 140, 255, 0.1);
+}
+
+.console-metric-card > span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.console-metric-card > strong {
+  display: block;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-family: "Manrope", sans-serif;
+  font-size: 25px;
+  font-weight: 800;
+}
+
+/* Defense cards */
+
+.console-defense-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.console-defense-card {
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--surface);
+}
+
+.console-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #9eacbf;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+}
+
+.console-card-heading svg {
+  color: #819aff;
+}
+
+.console-detection-status {
+  display: block;
+  margin: 22px 0 12px;
+  font-family: "Manrope", sans-serif;
+  font-size: 25px;
+  font-weight: 800;
+}
+
+.console-detection-status.success {
+  color: #36d6a0;
+}
+
+.console-detection-status.warning {
+  color: #eab308;
+}
+
+.console-detection-status.danger {
+  color: #ef6868;
+}
+
+.console-detection-status.unknown {
+  color: #94a3b8;
+}
+
+/* Responsive */
+
+@media (max-width: 900px) {
+  .console-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .attack-console {
+    padding-top: 42px;
+  }
+
+  .attack-console-heading {
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .console-control-grid,
+  .console-defense-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .console-target-panel {
+    grid-template-columns: auto 1fr;
+  }
+
+  .console-target-health {
+    grid-column: 2;
+  }
+
+  .console-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .attack-console .container {
+    width: calc(100% - 30px);
+  }
+
+  .console-metrics-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .console-metric-card {
+    padding: 15px;
+  }
+
+  .console-metric-card > strong {
+    font-size: 20px;
+  }
+
+  .console-control-panel,
+  .console-state-panel,
+  .console-defense-card {
+    padding: 18px;
+  }
+
+  .console-target-panel {
+    padding: 17px;
+  }
+}

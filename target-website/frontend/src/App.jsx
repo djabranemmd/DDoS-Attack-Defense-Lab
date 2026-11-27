@@ -1,4 +1,4 @@
-
+import AttackConsole from "./pages/AttackConsole";
 import { useEffect, useState } from "react";
 import {
   BrowserRouter,
@@ -136,6 +136,13 @@ function Navbar() {
           >
             Dashboard
           </NavLink>
+
+          <NavLink
+  to="/attacker"
+  onClick={() => setMenuOpen(false)}
+>
+  Attack Console
+</NavLink>
 
           <div className="nav-actions">
             {isAuthenticated ? (
@@ -1177,6 +1184,15 @@ function AppLayout() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+  path="/attacker"
+  element={
+    <ProtectedRoute>
+      <AttackConsole />
+    </ProtectedRoute>
+  }
+/>
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
